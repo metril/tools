@@ -36,7 +36,7 @@ jobs:
 
       - name: Open auto-merge PR
         if: steps.gate.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           # Works with the built-in token; set AUTOMATION_TOKEN (a PAT/App token)
           # only if you want the PR's build-test check to run and auto-merge to

@@ -1,0 +1,11 @@
+{
+  "name": "olympos-tools",
+  "version": "0.0.0-managed-by-semantic-release",
+  "private": true,
+  "description": "CI/CD toolbox container (HashiCorp Vault, jq, curl, wget). Versions are managed by semantic-release; this file exists only to configure it.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/metril/olympos-tools.git"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,145 @@
+name: release
+
+# Build + smoke-test the image on every PR (this is the required status check that
+# gates auto-merge). On pushes to main, additionally run semantic-release to cut a
+# semver version + GitHub Release, then build multi-arch and push to GHCR.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # semantic-release: tags, releases, changelog commit
+  packages: write # push image to GHCR
+  issues: write # semantic-release may comment
+  pull-requests: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-test:
+    name: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read pinned versions
+        id: vers
+        run: |
+          {
+            echo "base_image=$(jq -r '.base_image' versions.json)"
+            echo "base_digest=$(jq -r '.base_digest' versions.json)"
+            echo "vault_version=$(jq -r '.vault_version' versions.json)"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build (amd64) and load
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: olympos-tools:test
+          build-args: |
+            BASE_IMAGE=${{ steps.vers.outputs.base_image }}
+            BASE_DIGEST=${{ steps.vers.outputs.base_digest }}
+            VAULT_VERSION=${{ steps.vers.outputs.vault_version }}
+            VERSION=ci-test
+            REVISION=${{ github.sha }}
+
+      - name: Smoke test
+        run: |
+          set -euxo pipefail
+          docker run --rm olympos-tools:test vault version
+          docker run --rm olympos-tools:test jq --version
+          docker run --rm olympos-tools:test curl --version
+          docker run --rm olympos-tools:test wget --version
+
+  release:
+    name: release
+    needs: build-test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.semrel.outputs.new_release_published }}
+      version: ${{ steps.semrel.outputs.new_release_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Built-in GITHUB_TOKEN is enough for tags/releases/changelog on an
+          # unprotected branch. Set AUTOMATION_TOKEN only if branch protection
+          # later blocks the changelog commit and you need a token that bypasses it.
+          token: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Semantic release
+        id: semrel
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          extra_plugins: |
+            @semantic-release/changelog
+            @semantic-release/git
+        env:
+          GITHUB_TOKEN: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: metril
+          GIT_AUTHOR_EMAIL: 1517921+metril@users.noreply.github.com
+          GIT_COMMITTER_NAME: metril
+          GIT_COMMITTER_EMAIL: 1517921+metril@users.noreply.github.com
+
+      - name: Read pinned versions
+        if: steps.semrel.outputs.new_release_published == 'true'
+        id: vers
+        run: |
+          {
+            echo "base_image=$(jq -r '.base_image' versions.json)"
+            echo "base_digest=$(jq -r '.base_digest' versions.json)"
+            echo "vault_version=$(jq -r '.vault_version' versions.json)"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+        if: steps.semrel.outputs.new_release_published == 'true'
+      - uses: docker/setup-buildx-action@v3
+        if: steps.semrel.outputs.new_release_published == 'true'
+
+      - name: Log in to GHCR
+        if: steps.semrel.outputs.new_release_published == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        if: steps.semrel.outputs.new_release_published == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.semrel.outputs.new_release_version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.semrel.outputs.new_release_version }}
+            type=semver,pattern={{major}},value=${{ steps.semrel.outputs.new_release_version }}
+
+      - name: Build and push (amd64 + arm64)
+        if: steps.semrel.outputs.new_release_published == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BASE_IMAGE=${{ steps.vers.outputs.base_image }}
+            BASE_DIGEST=${{ steps.vers.outputs.base_digest }}
+            VAULT_VERSION=${{ steps.vers.outputs.vault_version }}
+            VERSION=${{ steps.semrel.outputs.new_release_version }}
+            REVISION=${{ github.sha }}

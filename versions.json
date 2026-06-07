@@ -1,0 +1,5 @@
+{
+  "base_image": "alpine:3.21",
+  "base_digest": "sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d",
+  "vault_version": "2.0.2"
+}

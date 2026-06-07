@@ -1,0 +1,47 @@
+name: scheduled-rebuild
+
+# Periodic safety rebuild. Even when Vault and the base-image digest are unchanged,
+# this cuts a weekly patch release so the unpinned Alpine packages (jq/curl/wget and
+# transitive libs) are refreshed with the latest distro security fixes.
+#
+# Implemented as a sentinel-file PR (not a direct push) so it flows through the same
+# branch-protection + auto-merge path as every other change. Tradeoff: produces a
+# patch release roughly weekly even with no upstream change — intended for freshness.
+
+on:
+  schedule:
+    - cron: "30 5 * * 1" # Mondays 05:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stamp rebuild marker
+        run: date -u +"%Y-%m-%dT%H:%M:%SZ" > .rebuild-stamp
+
+      - name: Open auto-merge PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+          branch: chore/scheduled-rebuild
+          delete-branch: true
+          base: main
+          commit-message: "fix: scheduled rebuild to refresh distro packages"
+          author: "metril <1517921+metril@users.noreply.github.com>"
+          committer: "metril <1517921+metril@users.noreply.github.com>"
+          title: "fix: scheduled rebuild to refresh distro packages"
+          body: |
+            Automated weekly rebuild — refreshes unpinned Alpine packages
+            (jq/curl/wget + transitive libraries) with the latest distro fixes.
+          labels: automated, rebuild
+
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+        run: gh pr merge --squash --auto chore/scheduled-rebuild || echo "auto-merge not enabled (needs AUTOMATION_TOKEN + branch protection); merge the PR manually"

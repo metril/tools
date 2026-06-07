@@ -1,0 +1,65 @@
+name: check-upstream
+
+# Daily check for newer Vault / base-image versions. A newer upstream is only
+# adopted once it has been public for the vetting delay (default 7 days). When a
+# version clears the gate, open an auto-merge PR bumping versions.json — merging
+# it triggers the release workflow, which cuts a semver release and image.
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # daily 06:17 UTC
+  workflow_dispatch:
+    inputs:
+      delay_days:
+        description: "Override vetting delay in days"
+        required: false
+        default: "7"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-upstream
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Evaluate upstreams against the vetting gate
+        id: gate
+        env:
+          DELAY_DAYS: ${{ github.event.inputs.delay_days || '7' }}
+        run: bash scripts/check-upstream.sh
+
+      - name: Open auto-merge PR
+        if: steps.gate.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          # Works with the built-in token; set AUTOMATION_TOKEN (a PAT/App token)
+          # only if you want the PR's build-test check to run and auto-merge to
+          # complete hands-off — GITHUB_TOKEN-opened PRs don't trigger workflows.
+          token: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+          branch: chore/upstream-bump
+          delete-branch: true
+          base: main
+          commit-message: |
+            ${{ steps.gate.outputs.commit_subject }}
+
+            ${{ steps.gate.outputs.body }}
+          author: "metril <1517921+metril@users.noreply.github.com>"
+          committer: "metril <1517921+metril@users.noreply.github.com>"
+          title: ${{ steps.gate.outputs.commit_subject }}
+          body: |
+            Automated upstream bump — cleared the ${{ github.event.inputs.delay_days || '7' }}-day vetting delay.
+
+            ${{ steps.gate.outputs.body }}
+          labels: automated, dependencies
+
+      - name: Enable auto-merge
+        if: steps.gate.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
+        run: gh pr merge --squash --auto chore/upstream-bump || echo "auto-merge not enabled (needs AUTOMATION_TOKEN + branch protection); merge the PR manually"

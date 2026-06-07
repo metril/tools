@@ -104,7 +104,7 @@ jobs:
             echo "vault_version=$(jq -r '.vault_version' versions.json)"
           } >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
         if: steps.semrel.outputs.new_release_published == 'true'
       - uses: docker/setup-buildx-action@v4
         if: steps.semrel.outputs.new_release_published == 'true'

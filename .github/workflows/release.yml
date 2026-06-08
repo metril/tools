@@ -46,7 +46,7 @@ jobs:
         with:
           context: .
           load: true
-          tags: olympos-tools:test
+          tags: tools:test
           build-args: |
             BASE_IMAGE=${{ steps.vers.outputs.base_image }}
             BASE_DIGEST=${{ steps.vers.outputs.base_digest }}
@@ -57,10 +57,10 @@ jobs:
       - name: Smoke test
         run: |
           set -euxo pipefail
-          docker run --rm olympos-tools:test vault version
-          docker run --rm olympos-tools:test jq --version
-          docker run --rm olympos-tools:test curl --version
-          docker run --rm olympos-tools:test wget --version
+          docker run --rm tools:test vault version
+          docker run --rm tools:test jq --version
+          docker run --rm tools:test curl --version
+          docker run --rm tools:test wget --version
 
   release:
     name: release

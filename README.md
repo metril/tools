@@ -1,4 +1,4 @@
-# olympos-tools
+# tools
 
 A small, multi-arch container image bundling the tools needed in CI/CD pipelines
 (built for use as a GitLab CI image). It currently ships:
@@ -12,7 +12,7 @@ A small, multi-arch container image bundling the tools needed in CI/CD pipelines
 ```yaml
 # .gitlab-ci.yml
 some-job:
-  image: ghcr.io/metril/olympos-tools:latest
+  image: ghcr.io/metril/tools:latest
   script:
     - vault version
     - jq --version
@@ -21,10 +21,10 @@ some-job:
 Pull a specific version:
 
 ```bash
-docker pull ghcr.io/metril/olympos-tools:1.2.3   # exact
-docker pull ghcr.io/metril/olympos-tools:1.2     # latest patch of 1.2
-docker pull ghcr.io/metril/olympos-tools:1       # latest minor of 1
-docker pull ghcr.io/metril/olympos-tools:latest  # newest release
+docker pull ghcr.io/metril/tools:1.2.3   # exact
+docker pull ghcr.io/metril/tools:1.2     # latest patch of 1.2
+docker pull ghcr.io/metril/tools:1       # latest minor of 1
+docker pull ghcr.io/metril/tools:latest  # newest release
 ```
 
 Images are published for `linux/amd64` and `linux/arm64`.

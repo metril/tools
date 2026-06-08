@@ -21,7 +21,7 @@ jobs:
   rebuild:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Authenticates the branch push; PAT (if set) makes the PR's build-test run.
           token: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}

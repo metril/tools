@@ -14,34 +14,37 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # push the rebuild branch
+  pull-requests: write # open the PR
 
 jobs:
   rebuild:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Authenticates the branch push; PAT (if set) makes the PR's build-test run.
+          token: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Stamp rebuild marker
         run: date -u +"%Y-%m-%dT%H:%M:%SZ" > .rebuild-stamp
 
-      - name: Open auto-merge PR
-        uses: peter-evans/create-pull-request@v8
-        with:
-          token: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
-          branch: chore/scheduled-rebuild
-          delete-branch: true
-          base: main
-          commit-message: "fix: scheduled rebuild to refresh distro packages"
-          author: "metril <1517921+metril@users.noreply.github.com>"
-          committer: "metril <1517921+metril@users.noreply.github.com>"
-          title: "fix: scheduled rebuild to refresh distro packages"
-          body: |
-            Automated weekly rebuild — refreshes unpinned Alpine packages
-            (jq/curl/wget + transitive libraries) with the latest distro fixes.
-          labels: automated, rebuild
-
-      - name: Enable auto-merge
+      - name: Open / update PR (native git + gh)
         env:
           GH_TOKEN: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
-        run: gh pr merge --squash --auto chore/scheduled-rebuild || echo "auto-merge not enabled (needs AUTOMATION_TOKEN + branch protection); merge the PR manually"
+          BRANCH: chore/scheduled-rebuild
+          SUBJECT: "fix: scheduled rebuild to refresh distro packages"
+        run: |
+          set -euo pipefail
+          git config user.name metril
+          git config user.email 1517921+metril@users.noreply.github.com
+          git checkout -B "$BRANCH"
+          git add .rebuild-stamp
+          git commit -m "$SUBJECT"
+          git push -f origin "$BRANCH"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
+            gh pr create --base main --head "$BRANCH" --title "$SUBJECT" \
+              --body "Automated weekly rebuild — refreshes unpinned Alpine packages (jq/curl/wget + transitive libraries) with the latest distro fixes."
+          fi
+          gh pr merge --squash --auto "$BRANCH" \
+            || echo "auto-merge not enabled (needs AUTOMATION_TOKEN + branch protection); merge the PR manually"

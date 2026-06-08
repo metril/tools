@@ -7,5 +7,10 @@
     "type": "git",
     "url": "https://github.com/metril/olympos-tools.git"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "semantic-release": "^24.2.9"
+  }
 }

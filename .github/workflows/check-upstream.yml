@@ -16,7 +16,8 @@ on:
         default: "7"
 
 permissions:
-  contents: read
+  contents: write # push the bump branch
+  pull-requests: write # open the PR
 
 concurrency:
   group: check-upstream
@@ -27,6 +28,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Authenticates the branch push. With AUTOMATION_TOKEN set, the PR is
+          # attributed to the PAT so its build-test check runs and auto-merge works.
+          token: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Evaluate upstreams against the vetting gate
         id: gate
@@ -34,32 +39,28 @@ jobs:
           DELAY_DAYS: ${{ github.event.inputs.delay_days || '7' }}
         run: bash scripts/check-upstream.sh
 
-      - name: Open auto-merge PR
-        if: steps.gate.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v8
-        with:
-          # Works with the built-in token; set AUTOMATION_TOKEN (a PAT/App token)
-          # only if you want the PR's build-test check to run and auto-merge to
-          # complete hands-off — GITHUB_TOKEN-opened PRs don't trigger workflows.
-          token: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
-          branch: chore/upstream-bump
-          delete-branch: true
-          base: main
-          commit-message: |
-            ${{ steps.gate.outputs.commit_subject }}
-
-            ${{ steps.gate.outputs.body }}
-          author: "metril <1517921+metril@users.noreply.github.com>"
-          committer: "metril <1517921+metril@users.noreply.github.com>"
-          title: ${{ steps.gate.outputs.commit_subject }}
-          body: |
-            Automated upstream bump — cleared the ${{ github.event.inputs.delay_days || '7' }}-day vetting delay.
-
-            ${{ steps.gate.outputs.body }}
-          labels: automated, dependencies
-
-      - name: Enable auto-merge
+      - name: Open / update PR (native git + gh)
         if: steps.gate.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN }}
-        run: gh pr merge --squash --auto chore/upstream-bump || echo "auto-merge not enabled (needs AUTOMATION_TOKEN + branch protection); merge the PR manually"
+          BRANCH: chore/upstream-bump
+          DELAY_DAYS: ${{ github.event.inputs.delay_days || '7' }}
+          SUBJECT: ${{ steps.gate.outputs.commit_subject }}
+          # Body passed via env (not ${{ }} inlining) to avoid quoting/injection issues.
+          BODY: ${{ steps.gate.outputs.body }}
+        run: |
+          set -euo pipefail
+          git config user.name metril
+          git config user.email 1517921+metril@users.noreply.github.com
+          git checkout -B "$BRANCH"
+          git add versions.json
+          git commit -m "$SUBJECT" -m "$BODY"
+          git push -f origin "$BRANCH"
+          pr_body="Automated upstream bump — cleared the ${DELAY_DAYS:-7}-day vetting delay.
+
+          $BODY"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
+            gh pr create --base main --head "$BRANCH" --title "$SUBJECT" --body "$pr_body"
+          fi
+          gh pr merge --squash --auto "$BRANCH" \
+            || echo "auto-merge not enabled (needs AUTOMATION_TOKEN + branch protection); merge the PR manually"

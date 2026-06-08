@@ -79,12 +79,26 @@ bot PRs yourself** (one click), which then triggers the release.
 
 If you want the bot PRs to build and auto-merge with zero clicks:
 
-1. Add an **`AUTOMATION_TOKEN`** secret — a PAT (or GitHub App token) with `contents`,
-   `packages`, and `pull-requests` write. Every workflow falls back to it automatically
+1. **Create a token** — a fine-grained PAT scoped to this repo with **Contents: read/write**
+   and **Pull requests: read/write** (Metadata read is automatic). A classic PAT with the
+   `repo` scope also works. *Not needed:* `packages` (GHCR uses `GITHUB_TOKEN`) or `workflow`.
+   `Settings → Developer settings → Personal access tokens → Fine-grained tokens`.
+2. **Store it** as the secret **`AUTOMATION_TOKEN`**:
+   `Settings → Secrets and variables → Actions → New repository secret` (or
+   `gh secret set AUTOMATION_TOKEN`). Every workflow falls back to it automatically
    (`secrets.AUTOMATION_TOKEN || secrets.GITHUB_TOKEN`).
-2. **Enable auto-merge** in Settings → General.
-3. **Branch protection** on `main` requiring the `build-test` check, with the token
-   allowed to bypass it (for the `chore(release): … [skip ci]` changelog commit).
+3. **Enable auto-merge:** `Settings → General` → *Pull Requests* → tick "Allow auto-merge".
+4. **Branch protection** on `main`: `Settings → Branches → Add branch protection rule` →
+   pattern `main` → "Require status checks to pass" → select **`build-test`**. Add the
+   token's user/App to the rule's **bypass list** so the `chore(release): … [skip ci]`
+   changelog commit can push.
+
+## CI dependencies
+
+The workflows use **only GitHub- and Docker-published actions** (`actions/*`, `docker/*`) —
+no third-party actions. PR automation uses the built-in `git` + `gh` CLI, and releases run
+[`semantic-release`](https://semantic-release.gitbook.io/) directly via `npm`
+(pinned in [`package.json`](package.json) / `package-lock.json`).
 
 ## Adding a tool
 

@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/metril/tools/compare/v2.0.0...v2.1.0) (2026-07-19)
+
+
+### Features
+
+* update vault to 2.0.3 ([#13](https://github.com/metril/tools/issues/13)) ([7ef348e](https://github.com/metril/tools/commit/7ef348e523c95b525314acaae612d73e385ac1d3))
+
 # [2.0.0](https://github.com/metril/tools/compare/v1.0.0...v2.0.0) (2026-06-08)
 
 

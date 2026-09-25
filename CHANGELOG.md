@@ -1,3 +1,10 @@
+## [2.3.1](https://github.com/metril/tools/compare/v2.3.0...v2.3.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* refresh alpine:3.21 base image digest ([#17](https://github.com/metril/tools/issues/17)) ([43f3920](https://github.com/metril/tools/commit/43f39201bc2c10f3b0a4844c1548fef9bf8f2f1c))
+
 # [2.3.0](https://github.com/metril/tools/compare/v2.2.0...v2.3.0) (2026-09-24)
 
 
